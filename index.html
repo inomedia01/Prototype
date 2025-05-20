@@ -615,17 +615,21 @@
         .article-text a:hover, .page-content a:hover {
             opacity: 0.8;
         }
+
         .search-results {
             display: none;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 2rem;
             max-width: 1200px;
             margin: 2rem auto;
+            padding: 0 1rem;
         }
-   
+
         .search-results.active {
             display: grid;
         }
+
+
    
         .search-result-card {
             background: var(--white);
@@ -640,6 +644,12 @@
         .search-result-card:hover {
             transform: translateY(-10px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+    
+        .search-results {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 1rem;
         }
     
 .novel-page-controls {
@@ -720,10 +730,10 @@
 }
 
 @media (max-width: 768px) {
-    .btn-prev, .btn-next {
-        padding: 0.6rem 1.5rem;
-        font-size: 0.9rem;
+    .search-results {
+        grid-template-columns: 1fr;
     }
+}
 
     .btn-prev::before, .btn-next::after {
         width: 16px;
@@ -760,15 +770,15 @@
                     <h1>Selamat Datang di INOMEDIA</h1>
                     <p>Temukan dunia literasi dalam genggaman Anda</p>
                     <div class="search-bar">
-                        <input type="text" placeholder="Cari berita, buku, atau novel...">
-                        <button>Cari</button>
+                        <input type="text" placeholder="Cari berita, buku, atau novel..." onkeypress="handleSearchKey(event)">
+                        <button onclick="searchHandler()">Cari</button>
+                        <div class="search-results" id="search-results"></div>
                     </div>
                 </div>
             </div>
           
             <div class="kategori-grid">
                 <!-- Di dalam section#home, setelah .kategori-grid -->
-                <div class="search-results" id="search-results"></div>
                 <div class="kategori-card" onclick="showPage('berita')">
                     <h3>Berita Terkini</h3>
                     <p>Update terbaru sepanjang hari</p>
@@ -965,46 +975,57 @@
         });
     });
 
-    function searchHandler() {
-           const keyword = document.querySelector('.search-bar input').value.trim().toLowerCase();
-           const kategoriGrid = document.getElementById('kategori-grid');
-           const searchResults = document.getElementById('search-results');
-       
-           if (!keyword) {
-               kategoriGrid.style.display = 'grid';
-               searchResults.style.display = 'none';
-               return;
-           }
-   
-           // Filter data
-           const results = [];
-           const searchInData = (data, type) => {
-               data.forEach(item => {
-                   const match = item.title.toLowerCase().includes(keyword) ||
-                       (item.excerpt && item.excerpt.toLowerCase().includes(keyword)) ||
-                       (item.content && item.content.toLowerCase().includes(keyword)) ||
-                       (item.author && item.author.toLowerCase().includes(keyword));
-                   if (match) results.push({ type, ...item });
-               });
-           };
     
-           searchInData(database.berita, 'berita');
-           searchInData(database.buku, 'buku');
-           searchInData(database.novel, 'novel');
-   
-           // Tampilkan hasil
-           kategoriGrid.style.display = 'none';
-           searchResults.style.display = 'grid';
-           searchResults.innerHTML = results.length ? 
-               results.map(item => `
-                   <div class="search-result-card" onclick="showContent('${item.type}', '${item.id}')">
-                       <h3>${item.title}</h3>
-                       <p><em>${item.type.toUpperCase()}</em></p>
-                       ${item.excerpt ? `<p>${item.excerpt}</p>` : ''}
-                   </div>`
-               ).join('') : 
-               '<div class="empty">Tidak ada hasil ditemukan</div>';
-       }
+function searchHandler() {
+    const keyword = document.querySelector('.search-bar input').value.trim().toLowerCase();
+    const kategoriGrid = document.querySelector('.kategori-grid');
+    const searchResults = document.getElementById('search-results');
+
+    // Reset tampilan jika pencarian kosong
+    if (!keyword) {
+        kategoriGrid.style.display = 'grid';
+        searchResults.classList.remove('active');
+        searchResults.innerHTML = '';
+        return;
+    }
+
+    // Filter data
+    const results = [];
+    
+    const searchInData = (data, type) => {
+        data.forEach(item => {
+            const match = item.title?.toLowerCase().includes(keyword) ||
+                         item.excerpt?.toLowerCase().includes(keyword) ||
+                         item.content?.toLowerCase().includes(keyword) ||
+                         item.author?.toLowerCase().includes(keyword);
+            if (match) results.push({ type, ...item });
+        });
+    };
+
+    // Cari di semua kategori
+    if (database.berita) searchInData(database.berita, 'berita');
+    if (database.buku) searchInData(database.buku, 'buku');
+    if (database.novel) searchInData(database.novel, 'novel');
+
+    // Update tampilan
+    kategoriGrid.style.display = 'none';
+    searchResults.classList.add('active');
+    
+    searchResults.innerHTML = results.length ? 
+        results.map(item => `
+            <div class="search-result-card" onclick="showContent('${item.type}', '${item.id}')">
+                <h3>${item.title}</h3>
+                <p><em>${item.type.toUpperCase()}</em></p>
+                ${item.excerpt ? `<p>${item.excerpt}</p>` : ''}
+            </div>`
+        ).join('') : 
+        '<div class="empty">Tidak ada hasil ditemukan</div>';
+}
+
+function handleSearchKey(e) {
+    if (e.key === 'Enter') searchHandler();
+}
+
     // Ganti fungsi fetchData dengan ini
     async function fetchData(endpoint) {
       try {
@@ -1168,83 +1189,59 @@
   
     async function loadBabBuku(bookId, babIndex) {
         const bookData = database.buku.find(b => b.id == bookId);
-        if (!bookData || !bookData.chapters[babIndex]) return;
+        if (!bookData?.chapters?.[babIndex]) {
+            alert('Bab tidak ditemukan!');
+            return;
+        }
 
         appState.bookState = {
             currentBook: bookId,
             currentChapter: babIndex,
-            currentPage: 0,
-            totalPages: bookData.chapters[babIndex].pages.length
-       };
+            currentPage: 0
+        };
 
-        document.getElementById('buku-title').textContent = `${bookData.title} - Bab ${babIndex + 1}`;
+        // Update metadata
+        const updateField = (id, value) => {
+            document.getElementById(id).textContent = value;
+        };
+        
+        updateField('buku-author', `Penulis: ${bookData.author || '-'}`);
+        updateField('buku-publisher', `Penerbit: ${bookData.publisher || '-'}`);
+        updateField('buku-year', `Tahun: ${bookData.year || '-'}`);
+
         updateBookPage();
         showPage('membaca-buku');
-    } 
+    }
     
     async function updateBookPage() {
         const state = appState.bookState;
         const bookData = database.buku.find(b => b.id == state.currentBook);
-        if (!bookData) return;
+        if (!bookData || !bookData.chapters[state.currentChapter]) {
+            console.error('Data buku/chapter tidak valid');
+            return;
+        }
 
         const chapter = bookData.chapters[state.currentChapter];
         
-    document.getElementById('buku-author').textContent = `Penulis: ${bookData.author || '-'}`;
-    document.getElementById('buku-publisher').textContent = `Penerbit: ${bookData.publisher || '-'}`;
-    document.getElementById('buku-year').textContent = `Tahun: ${bookData.year || '-'}`;
+        // Update semua elemen UI sekaligus
+        document.getElementById('buku-title').textContent = 
+            `${bookData.title} - Bab ${state.currentChapter + 1}`;
+            
+        document.getElementById('buku-content').innerHTML = 
+            chapter.pages[state.currentPage] || '<em>Konten tidak tersedia</em>';
 
-    const pageContent = chapter.pages[state.currentPage];
-    
-        const bookContentElement = document.getElementById('buku-content');
-        const pageNumberElement = document.querySelector('.page-number');
+        const pageInfo = `Bab ${state.currentChapter + 1} - Halaman ${state.currentPage + 1} dari ${chapter.pages.length}`;
+        document.querySelector('.page-number').textContent = pageInfo;
+
+        // Update status tombol dengan kondisi yang lebih akurat
         const prevButton = document.querySelector('.btn-prev');
         const nextButton = document.querySelector('.btn-next');
-
-        try {
-            bookContentElement.innerHTML = pageContent;
-            pageNumberElement.textContent = `Bab ${state.currentChapter + 1} - Hal ${state.currentPage + 1}`;
         
-            prevButton.disabled = (state.currentPage === 0 && state.currentChapter === 0);
-            nextButton.disabled = (state.currentPage === chapter.pages.length - 1 && 
-                                  state.currentChapter === bookData.chapters.length - 1);
-
-        } catch (error) {
-            console.error('Error:', error);
-            bookContentElement.textContent = 'Gagal memuat halaman';
-        }
-    }     
-
-    const prevPageButton = document.querySelector('.btn-prev');
-const nextPageButton = document.querySelector('.btn-next');
-
-// Untuk tombol sebelumnya
-    prevPageButton.addEventListener('click', () => {
-        const state = appState.bookState;
-        const bookData = database.buku.find(b => b.id == state.currentBook);
-    
-        if (state.currentPage > 0) {
-            state.currentPage--;
-        } else if (state.currentChapter > 0) {
-            state.currentChapter--;
-            state.currentPage = bookData.chapters[state.currentChapter].pages.length - 1;
-        }
-        updateBookPage();
-    });
-
-    // Untuk tombol selanjutnya 
-    nextPageButton.addEventListener('click', () => {
-        const state = appState.bookState;
-        const bookData = database.buku.find(b => b.id == state.currentBook);
-    
-        if (state.currentPage < bookData.chapters[state.currentChapter].pages.length - 1) {
-            state.currentPage++;
-        } else if (state.currentChapter < bookData.chapters.length - 1) {
-            state.currentChapter++;
-            state.currentPage = 0;
-        }
-        updateBookPage();
-    });
-       
+        prevButton.disabled = (state.currentPage === 0 && state.currentChapter === 0);
+        nextButton.disabled = (state.currentPage === chapter.pages.length - 1 && 
+                             state.currentChapter === bookData.chapters.length - 1);
+    }
+      
     function prevNovelChapter() {
       if (appState.novelState.currentChapter > 1) {
         loadNovelChapter(appState.novelState.currentChapter - 1, appState.novelState.currentNovel);
@@ -1256,7 +1253,7 @@ const nextPageButton = document.querySelector('.btn-next');
     function nextNovelChapter() {
       const novel = database.novel.find(n => n.id == appState.novelState.currentNovel);
       if (!novel) return;
-      if (appState.novelState.currentChapter <= novel.chapters.length) {
+      if (appState.novelState.currentChapter < novel.chapters.length) {
         loadNovelChapter(appState.novelState.currentChapter + 1, appState.novelState.currentNovel);
       } else {
         showPage('daftar-chapter');
@@ -1273,7 +1270,11 @@ async function loadNovelChapter(chapterId, novelId) {
         if (!novelData) {
             throw new Error('Novel tidak ditemukan');
         }
-        const chapter = novelData.chapters[chapterId - 1]; 
+            if (!novelData || chapterId > novelData.chapters.length) {
+        showPage('daftar-chapter');
+        return;
+    }
+    const chapter = novelData.chapters[chapterId - 1]; 
         if (!chapter) {
             throw new Error('Chapter tidak ditemukan');
         }
@@ -1297,7 +1298,9 @@ async function loadNovelChapter(chapterId, novelId) {
         }
         
         const chapterNumberSpan = document.getElementById('novel-chapter-number');
-        if (chapterNumberSpan) chapterNumberSpan.textContent = `Chapter ${chapterId}`;
+        if (chapterNumberSpan) {
+    chapterNumberSpan.textContent = `Chapter ${chapterId} dari ${novelData.chapters.length}`;
+}
 
         appState.novelState.currentChapter = chapterId;
         showPage('membaca-novel');
@@ -1320,10 +1323,11 @@ async function loadNovelChapter(chapterId, novelId) {
             if(entry.isIntersecting) {
                 entry.target.style.opacity = 1;
                 entry.target.style.transform = 'translateY(0)';
-                observer.unobserve(entry.target); // Stop observing after animation
+                observer.unobserve(entry.target);
             }
-        });
-    }, { threshold: 0.1 });
+        }); 
+    }, { threshold: 0.1 }); 
+
 
     document.querySelectorAll('.kategori-card, .berita-card, .buku-card, .novel-card').forEach(item => {
         observer.observe(item);
@@ -1338,6 +1342,33 @@ async function loadNovelChapter(chapterId, novelId) {
     window.addEventListener('load', handlePageLoad);
     window.addEventListener('hashchange', handlePageLoad);
   
+
+document.querySelector('.btn-prev').addEventListener('click', () => {
+    const state = appState.bookState;
+    const bookData = database.buku.find(b => b.id == state.currentBook);
+    
+    if (state.currentPage > 0) {
+        state.currentPage--;
+    } else if (state.currentChapter > 0) {
+        state.currentChapter--;
+        state.currentPage = bookData.chapters[state.currentChapter].pages.length - 1;
+    }
+    updateBookPage();
+});
+
+document.querySelector('.btn-next').addEventListener('click', () => {
+    const state = appState.bookState;
+    const bookData = database.buku.find(b => b.id == state.currentBook);
+    
+    if (state.currentPage < bookData.chapters[state.currentChapter].pages.length - 1) {
+        state.currentPage++;
+    } else if (state.currentChapter < bookData.chapters.length - 1) {
+        state.currentChapter++;
+        state.currentPage = 0;
+    }
+    updateBookPage();
+});
+
 </script>
 </body>
 </html>
